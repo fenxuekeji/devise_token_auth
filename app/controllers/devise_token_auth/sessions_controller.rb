@@ -15,18 +15,7 @@ module DeviseTokenAuth
       @resource = nil
       if field
         q_value = resource_params[field]
-
-        if resource_class.case_insensitive_keys.include?(field)
-          q_value.downcase!
-        end
-
-        q = "#{field.to_s} = ? AND provider='email'"
-
-        if ActiveRecord::Base.connection.adapter_name.downcase.starts_with? 'mysql'
-          q = "BINARY " + q
-        end
-
-        @resource = resource_class.where(q, q_value).first
+        @resource = resource_class.find_for_database_authentication({field => q_value} )
       end
 
       if @resource and valid_params?(field, q_value) and @resource.valid_password?(resource_params[:password]) and (!@resource.respond_to?(:active_for_authentication?) or @resource.active_for_authentication?)
@@ -38,7 +27,9 @@ module DeviseTokenAuth
           token: BCrypt::Password.create(@token),
           expiry: (Time.now + DeviseTokenAuth.token_lifespan).to_i
         }
-        @resource.save
+      
+        @resource.update_attribute(:tokens, @resource.tokens)
+        @resource = resource_class.where(id: @resource.id).first
 
         sign_in(:user, @resource, store: false, bypass: false)
 
